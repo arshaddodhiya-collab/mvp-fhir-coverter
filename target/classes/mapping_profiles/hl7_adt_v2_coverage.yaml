@@ -1,0 +1,47 @@
+# ============================================================
+# HL7 ADT v2 → FHIR R4 Coverage Eligibility Mapping Profile
+# ============================================================
+# This file defines HOW each HL7 PID field maps to FHIR fields.
+#
+# HL7 PID Segment Format (pipe-delimited):
+#   PID|1||ABHA123||Sharma^Rahul||19900415|M
+#   Index: 0  1  2  3      4       5        6       7      8
+#
+# Note: Index 0 = "PID" (segment name), fields start at index 1.
+# ============================================================
+
+profile: hl7_adt_v2_to_coverage
+version: "1.0"
+sourceFormat: HL7v2_ADT
+targetFormat: FHIR_R4
+
+# Mapping rules for the PID segment
+segments:
+  PID:
+    fields:
+      # Field 3 = Patient Identifier (ABHA ID)
+      3:
+        fhirPath: "Patient.identifier[abha].value"
+        description: "ABHA ID — Ayushman Bharat Health Account identifier"
+
+      # Field 5 = Patient Name (uses ^ as sub-delimiter)
+      #   Subfield 1 = Family name (surname)
+      #   Subfield 2 = Given name (first name)
+      5:
+        subfields:
+          1:
+            fhirPath: "Patient.name.family"
+            description: "Family name (surname)"
+          2:
+            fhirPath: "Patient.name.given"
+            description: "Given name (first name)"
+
+      # Field 7 = Date of Birth (format: YYYYMMDD)
+      7:
+        fhirPath: "Patient.birthDate"
+        description: "Date of birth in YYYYMMDD format, converted to YYYY-MM-DD"
+
+      # Field 8 = Gender (M → male, F → female)
+      8:
+        fhirPath: "Patient.gender"
+        description: "Administrative gender (M/F mapped to male/female)"
