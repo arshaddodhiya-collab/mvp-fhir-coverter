@@ -1,0 +1,73 @@
+# ============================================================
+# HL7 ADT v2 → FHIR R4 Claim Mapping Profile
+# ============================================================
+# This file defines HOW each HL7 QA/Claim field maps to FHIR fields.
+#
+# ============================================================
+
+profile: hl7_adt_v2_to_claim
+version: "1.0"
+sourceFormat: HL7v2_ADT
+targetFormat: FHIR_R4
+
+# Mapping rules for the Claim and Encounter segments
+segments:
+  PID:
+    fields:
+      3:
+        fhirPath: "Patient.identifier[abha].value"
+        description: "ABHA ID — Ayushman Bharat Health Account identifier"
+      5:
+        subfields:
+          1:
+            fhirPath: "Patient.name.family"
+            description: "Family name (surname)"
+          2:
+            fhirPath: "Patient.name.given"
+            description: "Given name (first name)"
+      7:
+        fhirPath: "Patient.birthDate"
+        description: "Date of birth in YYYYMMDD format, converted to YYYY-MM-DD"
+      8:
+        fhirPath: "Patient.gender"
+        description: "Administrative gender (M/F mapped to male/female)"
+
+  PV1:
+    description: "Patient Visit info for Encounter"
+    fields:
+      44:
+        fhirPath: "Encounter.period.start"
+        description: "Admit Date/Time"
+      45:
+        fhirPath: "Encounter.period.end"
+        description: "Discharge Date/Time"
+
+  DG1:
+    description: "Diagnosis info for Condition"
+    fields:
+      3:
+        fhirPath: "Condition.code.coding.code"
+        description: "Diagnosis Code (e.g. ICD-10)"
+      4:
+        fhirPath: "Condition.code.text"
+        description: "Diagnosis Description"
+
+  PR1:
+    description: "Procedure info for Procedure"
+    fields:
+      3:
+        fhirPath: "Procedure.code.coding.code"
+        description: "Procedure Code"
+      4:
+        fhirPath: "Procedure.code.text"
+        description: "Procedure Description"
+      5:
+        fhirPath: "Procedure.performedDateTime"
+        description: "Procedure Date/Time"
+
+  IN1:
+    description: "Insurance info for Claim billing"
+    fields:
+      36:
+        fhirPath: "Claim.identifier.value"
+        description: "Policy Number"

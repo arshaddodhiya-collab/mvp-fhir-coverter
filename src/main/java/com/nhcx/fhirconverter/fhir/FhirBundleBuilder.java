@@ -82,6 +82,28 @@ public class FhirBundleBuilder {
             // Entry 3: CoverageEligibilityRequest resource
             entries.add(wrapResource(buildCoverageEligibilityRequest(data)));
 
+            // ========== Claims & Pre-Auth Extensions ==========
+
+            // Add Encounter if we have admission data
+            if (data.getAdmitDate() != null) {
+                entries.add(wrapResource(buildEncounter(data)));
+            }
+
+            // Add Conditions (Diagnoses)
+            for (Hl7Data.Diagnosis diag : data.getDiagnoses()) {
+                entries.add(wrapResource(buildCondition(data, diag)));
+            }
+
+            // Add Procedures
+            for (Hl7Data.Procedure proc : data.getProcedures()) {
+                entries.add(wrapResource(buildProcedure(data, proc)));
+            }
+
+            // Add Claim if we have diagnoses or procedures
+            if (!data.getDiagnoses().isEmpty() || !data.getProcedures().isEmpty()) {
+                entries.add(wrapResource(buildClaim(data)));
+            }
+
             bundle.put("entry", entries);
 
             // Convert the Map to a JSON string using Jackson
@@ -187,6 +209,98 @@ public class FhirBundleBuilder {
         request.put("insurer", insurer);
 
         return request;
+    }
+
+    // ==================== Claim & Clinical Builders ====================
+
+    private Map<String, Object> buildEncounter(Hl7Data data) {
+        Map<String, Object> encounter = new LinkedHashMap<>();
+        encounter.put("resourceType", "Encounter");
+        encounter.put("status", "finished");
+
+        Map<String, Object> subject = new LinkedHashMap<>();
+        subject.put("reference", "Patient/" + data.getAbhaId());
+        encounter.put("subject", subject);
+
+        Map<String, Object> period = new LinkedHashMap<>();
+        if (data.getAdmitDate() != null)
+            period.put("start", formatDate(data.getAdmitDate()));
+        if (data.getDischargeDate() != null)
+            period.put("end", formatDate(data.getDischargeDate()));
+        if (!period.isEmpty())
+            encounter.put("period", period);
+
+        return encounter;
+    }
+
+    private Map<String, Object> buildCondition(Hl7Data data, Hl7Data.Diagnosis diag) {
+        Map<String, Object> condition = new LinkedHashMap<>();
+        condition.put("resourceType", "Condition");
+
+        Map<String, Object> subject = new LinkedHashMap<>();
+        subject.put("reference", "Patient/" + data.getAbhaId());
+        condition.put("subject", subject);
+
+        Map<String, Object> code = new LinkedHashMap<>();
+        List<Map<String, Object>> codingList = new ArrayList<>();
+        Map<String, Object> coding = new LinkedHashMap<>();
+        coding.put("code", diag.getCode());
+        codingList.add(coding);
+        code.put("coding", codingList);
+        code.put("text", diag.getDescription());
+        condition.put("code", code);
+
+        return condition;
+    }
+
+    private Map<String, Object> buildProcedure(Hl7Data data, Hl7Data.Procedure proc) {
+        Map<String, Object> procedure = new LinkedHashMap<>();
+        procedure.put("resourceType", "Procedure");
+        procedure.put("status", "completed");
+
+        Map<String, Object> subject = new LinkedHashMap<>();
+        subject.put("reference", "Patient/" + data.getAbhaId());
+        procedure.put("subject", subject);
+
+        Map<String, Object> code = new LinkedHashMap<>();
+        List<Map<String, Object>> codingList = new ArrayList<>();
+        Map<String, Object> coding = new LinkedHashMap<>();
+        coding.put("code", proc.getCode());
+        codingList.add(coding);
+        code.put("coding", codingList);
+        code.put("text", proc.getDescription());
+        procedure.put("code", code);
+
+        if (proc.getDate() != null && !proc.getDate().isEmpty()) {
+            procedure.put("performedDateTime", formatDate(proc.getDate()));
+        }
+
+        return procedure;
+    }
+
+    private Map<String, Object> buildClaim(Hl7Data data) {
+        Map<String, Object> claim = new LinkedHashMap<>();
+        claim.put("resourceType", "Claim");
+        claim.put("status", "active");
+        claim.put("use", "claim");
+        claim.put("created", LocalDate.now().toString());
+
+        // Identifier
+        if (data.getPolicyNumber() != null) {
+            Map<String, Object> identifier = new LinkedHashMap<>();
+            identifier.put("value", data.getPolicyNumber());
+            claim.put("identifier", Collections.singletonList(identifier));
+        }
+
+        Map<String, Object> patient = new LinkedHashMap<>();
+        patient.put("reference", "Patient/" + data.getAbhaId());
+        claim.put("patient", patient);
+
+        Map<String, Object> provider = new LinkedHashMap<>();
+        provider.put("reference", "Organization/Hospital"); // Default provider
+        claim.put("provider", provider);
+
+        return claim;
     }
 
     // ==================== Helper Methods ====================

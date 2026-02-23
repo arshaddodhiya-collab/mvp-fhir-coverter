@@ -34,77 +34,93 @@ import org.springframework.stereotype.Component;
 @Component // Marks this as a Spring-managed bean
 public class Hl7Parser {
 
-    /**
-     * Parses a raw HL7 PID segment and extracts patient data.
-     *
-     * @param rawHl7 The raw HL7 message (one or more lines)
-     * @return Hl7Data object containing the extracted fields
-     * @throws IllegalArgumentException if the message doesn't contain a PID segment
-     */
     public Hl7Data parse(String rawHl7) {
-        // Step 1: Find the PID segment line
-        // An HL7 message can have multiple segments (MSH, PID, PV1, etc.)
-        // We only care about the PID segment for patient data
-        String pidLine = findPidSegment(rawHl7);
+        String pidLine = findSegment(rawHl7, "PID");
+        if (pidLine == null) {
+            throw new IllegalArgumentException("No PID segment found");
+        }
 
-        // Step 2: Split the PID line by "|" to get individual fields
-        String[] fields = pidLine.split("\\|");
-
-        // Step 3: Create our data object and fill it in
         Hl7Data data = new Hl7Data();
 
-        // Field 3 = ABHA ID (index 3 in the array)
-        if (fields.length > 3) {
-            data.setAbhaId(fields[3].trim());
-        }
-
-        // Field 5 = Patient Name (index 5), which contains sub-fields separated by "^"
-        if (fields.length > 5) {
-            String nameField = fields[5];
-            String[] nameParts = nameField.split("\\^");
-            // Subfield 0 = Family name (surname)
-            if (nameParts.length > 0) {
+        // 1. Parse PID (Patient)
+        String[] pidFields = pidLine.split("\\|");
+        if (pidFields.length > 3)
+            data.setAbhaId(pidFields[3].trim());
+        if (pidFields.length > 5) {
+            String[] nameParts = pidFields[5].split("\\^");
+            if (nameParts.length > 0)
                 data.setFamilyName(nameParts[0].trim());
-            }
-            // Subfield 1 = Given name (first name)
-            if (nameParts.length > 1) {
+            if (nameParts.length > 1)
                 data.setGivenName(nameParts[1].trim());
+        }
+        if (pidFields.length > 7)
+            data.setDateOfBirth(pidFields[7].trim());
+        if (pidFields.length > 8)
+            data.setGender(pidFields[8].trim());
+
+        // 2. Parse PV1 (Encounter)
+        String pv1Line = findSegment(rawHl7, "PV1");
+        if (pv1Line != null) {
+            String[] pv1Fields = pv1Line.split("\\|");
+            if (pv1Fields.length > 44)
+                data.setAdmitDate(pv1Fields[44].trim());
+            if (pv1Fields.length > 45)
+                data.setDischargeDate(pv1Fields[45].trim());
+        }
+
+        // 3. Parse IN1 (Insurance)
+        String in1Line = findSegment(rawHl7, "IN1");
+        if (in1Line != null) {
+            String[] in1Fields = in1Line.split("\\|");
+            if (in1Fields.length > 36)
+                data.setPolicyNumber(in1Fields[36].trim());
+        }
+
+        // 4. Parse all DG1 (Diagnoses)
+        for (String dg1Line : findAllSegments(rawHl7, "DG1")) {
+            String[] dg1Fields = dg1Line.split("\\|");
+            if (dg1Fields.length > 3) {
+                // Usually field 3 has code^text^codingSystem
+                String[] dCode = dg1Fields[3].split("\\^");
+                String code = dCode.length > 0 ? dCode[0].trim() : "";
+                String text = dCode.length > 1 ? dCode[1].trim() : (dg1Fields.length > 4 ? dg1Fields[4].trim() : "");
+                data.addDiagnosis(new Hl7Data.Diagnosis(code, text));
             }
         }
 
-        // Field 7 = Date of Birth (index 7)
-        if (fields.length > 7) {
-            data.setDateOfBirth(fields[7].trim());
-        }
-
-        // Field 8 = Gender (index 8)
-        if (fields.length > 8) {
-            data.setGender(fields[8].trim());
+        // 5. Parse all PR1 (Procedures)
+        for (String pr1Line : findAllSegments(rawHl7, "PR1")) {
+            String[] pr1Fields = pr1Line.split("\\|");
+            if (pr1Fields.length > 3) {
+                String[] pCode = pr1Fields[3].split("\\^");
+                String code = pCode.length > 0 ? pCode[0].trim() : "";
+                String text = pCode.length > 1 ? pCode[1].trim() : (pr1Fields.length > 4 ? pr1Fields[4].trim() : "");
+                String date = pr1Fields.length > 5 ? pr1Fields[5].trim() : "";
+                data.addProcedure(new Hl7Data.Procedure(code, text, date));
+            }
         }
 
         return data;
     }
 
-    /**
-     * Finds the PID segment from a (possibly multi-line) HL7 message.
-     *
-     * @param rawHl7 The full HL7 message
-     * @return The PID segment line
-     * @throws IllegalArgumentException if no PID segment is found
-     */
-    private String findPidSegment(String rawHl7) {
-        // Split by newline to handle multi-segment messages
+    private String findSegment(String rawHl7, String segmentName) {
         String[] lines = rawHl7.split("\\r?\\n");
-
         for (String line : lines) {
-            // Check if this line starts with "PID"
-            if (line.trim().startsWith("PID")) {
+            if (line.trim().startsWith(segmentName + "|")) {
                 return line.trim();
             }
         }
+        return null;
+    }
 
-        throw new IllegalArgumentException(
-                "No PID segment found in the HL7 message. " +
-                        "The message must contain a line starting with 'PID'.");
+    private java.util.List<String> findAllSegments(String rawHl7, String segmentName) {
+        java.util.List<String> segments = new java.util.ArrayList<>();
+        String[] lines = rawHl7.split("\\r?\\n");
+        for (String line : lines) {
+            if (line.trim().startsWith(segmentName + "|")) {
+                segments.add(line.trim());
+            }
+        }
+        return segments;
     }
 }
