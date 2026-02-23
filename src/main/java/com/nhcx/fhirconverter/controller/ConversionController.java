@@ -53,8 +53,13 @@ public class ConversionController {
     )
     public ResponseEntity<String> convertCoverage(@RequestBody String rawHl7) {
         try {
+            // HL7 strictly requires '\r' (carriage return) as the segment terminator.
+            // Often, curl or HTTP tools send '\n' or '\r\n' instead. We normalize it safely
+            // here.
+            String normalizedHl7 = rawHl7.replaceAll("\\r\\n|\\n", "\r");
+
             // Delegate to service layer for the actual conversion
-            String fhirJson = conversionService.convertCoverage(rawHl7);
+            String fhirJson = conversionService.convertCoverage(normalizedHl7);
 
             // Return the FHIR JSON with 200 OK status
             return ResponseEntity.ok(fhirJson);

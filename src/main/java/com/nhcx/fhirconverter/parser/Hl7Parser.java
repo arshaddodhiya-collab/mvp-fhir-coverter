@@ -1,12 +1,5 @@
 package com.nhcx.fhirconverter.parser;
 
-import ca.uhn.hl7v2.DefaultHapiContext;
-import ca.uhn.hl7v2.HapiContext;
-import ca.uhn.hl7v2.model.Message;
-import ca.uhn.hl7v2.model.v25.message.ADT_A01; // Using ADT A01 structure as general representation
-import ca.uhn.hl7v2.model.v25.segment.*;
-import ca.uhn.hl7v2.parser.Parser;
-import ca.uhn.hl7v2.util.Terser;
 import com.nhcx.fhirconverter.model.Hl7Data;
 import org.springframework.stereotype.Component;
 
@@ -14,108 +7,124 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * HL7 v2 Message Parser using HAPI HL7v2 Library
+ * Robust HL7 Parser.
  *
- * HOW HAPI PARSING WORKS:
- * =======================
- * Instead of manually splitting strings by "|" and "^", HAPI handles all escape
- * characters, sub-components, and varying segment orders seamlessly.
- * It builds a strong-typed Java object tree representing the message.
+ * This implementation uses direct string splitting to handle legacy HL7
+ * messages.
+ * It is more reliable than complex libraries for real-world non-standard
+ * messages
+ * because it doesn't enforce strict segment hierarchies.
  */
 @Component
 public class Hl7Parser {
 
-    private final HapiContext context;
-    private final Parser parser;
-
-    public Hl7Parser() {
-        this.context = new DefaultHapiContext();
-        // PipeParser is for standard pipe-and-hat (| ^) delimited HL7
-        this.parser = context.getPipeParser();
-    }
-
     public Hl7Data parse(String rawHl7) {
-        try {
-            // Let HAPI parse the messy string into a formal Message object
-            Message message = parser.parse(rawHl7);
-            Hl7Data data = new Hl7Data();
-
-            // We use a Terser (HAPI's path-based extractor) to easily pull fields
-            // even if we don't know the exact message type (ADT, ORU, etc).
-            Terser terser = new Terser(message);
-
-            // 1. Parse PID (Patient)
-            try {
-                data.setAbhaId(terser.get("/.PID-3-1"));
-                data.setFamilyName(terser.get("/.PID-5-1"));
-                data.setGivenName(terser.get("/.PID-5-2"));
-
-                // HAPI handles datetime extraction cleanly
-                String dob = terser.get("/.PID-7-1");
-                if (dob != null && dob.length() >= 8) {
-                    data.setDateOfBirth(dob.substring(0, 8)); // YYYYMMDD
-                }
-                data.setGender(terser.get("/.PID-8-1"));
-            } catch (Exception e) {
-                // Not all messages will have every field, catch and continue
-            }
-
-            // 2. Parse PV1 (Encounter)
-            try {
-                String admit = terser.get("/.PV1-44-1");
-                if (admit != null && admit.length() >= 8)
-                    data.setAdmitDate(admit.substring(0, 8));
-
-                String discharge = terser.get("/.PV1-45-1");
-                if (discharge != null && discharge.length() >= 8)
-                    data.setDischargeDate(discharge.substring(0, 8));
-            } catch (Exception e) {
-            }
-
-            // 3. Parse IN1 (Insurance)
-            try {
-                data.setPolicyNumber(terser.get("/.IN1-36-1"));
-            } catch (Exception e) {
-            }
-
-            // 4. Parse DG1 and PR1 using raw segments if multiple exist
-            // (Terser is good for single fields, but looping requires segment access)
-            try {
-                ca.uhn.hl7v2.model.Structure[] dg1Nodes = message.getAll("DG1");
-                for (ca.uhn.hl7v2.model.Structure struct : dg1Nodes) {
-                    DG1 dg1 = (DG1) struct;
-                    String code = dg1.getDiagnosisCodeDG1().getIdentifier().getValue();
-                    String text = dg1.getDiagnosisCodeDG1().getText().getValue();
-                    if (code != null || text != null) {
-                        data.addDiagnosis(new Hl7Data.Diagnosis(code, text));
-                    }
-                }
-            } catch (ca.uhn.hl7v2.HL7Exception e) {
-                // No DG1 segments found, which is fine
-            }
-
-            try {
-                ca.uhn.hl7v2.model.Structure[] pr1Nodes = message.getAll("PR1");
-                for (ca.uhn.hl7v2.model.Structure struct : pr1Nodes) {
-                    PR1 pr1 = (PR1) struct;
-                    String code = pr1.getProcedureCode().getIdentifier().getValue();
-                    String text = pr1.getProcedureCode().getText().getValue();
-                    String date = pr1.getProcedureDateTime().getTime().getValue();
-                    if (date != null && date.length() >= 8)
-                        date = date.substring(0, 8);
-
-                    if (code != null || text != null) {
-                        data.addProcedure(new Hl7Data.Procedure(code, text, date));
-                    }
-                }
-            } catch (ca.uhn.hl7v2.HL7Exception e) {
-                // No PR1 segments found, which is fine
-            }
-
+        Hl7Data data = new Hl7Data();
+        if (rawHl7 == null || rawHl7.isEmpty())
             return data;
 
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Failed to parse HL7 using HAPI: " + e.getMessage(), e);
+        // Normalize newlines and split into segments
+        String[] segments = rawHl7.split("[\\r\\n]+");
+
+        for (String segment : segments) {
+            String[] fields = segment.split("\\|");
+            if (fields.length == 0)
+                continue;
+
+            String segmentName = fields[0];
+
+            switch (segmentName) {
+                case "PID" -> parsePid(fields, data);
+                case "PV1" -> parsePv1(fields, data);
+                case "IN1" -> parseIn1(fields, data);
+                case "DG1" -> parseDg1(fields, data);
+                case "PR1" -> parsePr1(fields, data);
+            }
         }
+
+        return data;
+    }
+
+    private void parsePid(String[] fields, Hl7Data data) {
+        // PID-3: Patient Identifier (ABHA ID)
+        data.setAbhaId(getField(fields, 3));
+
+        // PID-5: Patient Name (Family^Given)
+        String nameStr = getField(fields, 5);
+        if (nameStr != null) {
+            String[] nameParts = nameStr.split("\\^");
+            if (nameParts.length > 0)
+                data.setFamilyName(nameParts[0]);
+            if (nameParts.length > 1)
+                data.setGivenName(nameParts[1]);
+        }
+
+        // PID-7: Date of Birth (YYYYMMDD)
+        String dob = getField(fields, 7);
+        if (dob != null && dob.length() >= 8) {
+            data.setDateOfBirth(dob.substring(0, 8));
+        }
+
+        // PID-8: Gender (M/F)
+        data.setGender(getField(fields, 8));
+    }
+
+    private void parsePv1(String[] fields, Hl7Data data) {
+        // PV1-44: Admit Date
+        String admit = getField(fields, 44);
+        if (admit != null && admit.length() >= 8) {
+            data.setAdmitDate(admit.substring(0, 8));
+        }
+
+        // PV1-45: Discharge Date
+        String discharge = getField(fields, 45);
+        if (discharge != null && discharge.length() >= 8) {
+            data.setDischargeDate(discharge.substring(0, 8));
+        }
+    }
+
+    private void parseIn1(String[] fields, Hl7Data data) {
+        // IN1-36: Policy Number (Often used for Insurance Plan ID in NHCX)
+        data.setPolicyNumber(getField(fields, 36));
+    }
+
+    private void parseDg1(String[] fields, Hl7Data data) {
+        // DG1-3: Diagnosis Code (Code^Description)
+        String diagStr = getField(fields, 3);
+        if (diagStr != null) {
+            String[] diagParts = diagStr.split("\\^");
+            String code = diagParts.length > 0 ? diagParts[0] : "";
+            String text = diagParts.length > 1 ? diagParts[1] : "";
+            data.addDiagnosis(new Hl7Data.Diagnosis(code, text));
+        }
+    }
+
+    private void parsePr1(String[] fields, Hl7Data data) {
+        // PR1-3: Procedure Code (Code^Description)
+        String procStr = getField(fields, 3);
+        String code = "", text = "";
+        if (procStr != null) {
+            String[] procParts = procStr.split("\\^");
+            code = procParts.length > 0 ? procParts[0] : "";
+            text = procParts.length > 1 ? procParts[1] : "";
+        }
+
+        // PR1-5: Procedure Date
+        String date = getField(fields, 5);
+        if (date != null && date.length() >= 8) {
+            date = date.substring(0, 8);
+        }
+
+        if (!code.isEmpty() || !text.isEmpty()) {
+            data.addProcedure(new Hl7Data.Procedure(code, text, date));
+        }
+    }
+
+    private String getField(String[] fields, int index) {
+        if (index < fields.length) {
+            String val = fields[index];
+            return (val == null || val.trim().isEmpty()) ? null : val.trim();
+        }
+        return null;
     }
 }

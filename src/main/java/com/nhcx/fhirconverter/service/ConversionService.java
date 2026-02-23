@@ -22,10 +22,10 @@ import java.util.List;
  * │ Raw HL7 text │
  * │ "PID|1||ABHA123||Sharma^Rahul.." │
  * └──────────┬───────────────────────┘
- * │ Hl7Parser.parse()
+ * │Hl7Parser.parse()
  * ▼
  * ┌──────────────────────────────────┐
- * │ Hl7Data { │
+ * │ Hl7Data {│
  * │ abhaId: "ABHA123" │
  * │ familyName: "Sharma" │
  * │ givenName: "Rahul" │
@@ -45,7 +45,7 @@ import java.util.List;
  * └──────────┬───────────────────────┘
  * │
  * 3. BUILD FHIR BUNDLE
- * │ FhirBundleBuilder.buildBundle()
+ * │FhirBundleBuilder.buildBundle()
  * ▼
  * ┌──────────────────────────────────┐
  * │ FHIR Bundle JSON (String) │
@@ -97,18 +97,22 @@ public class ConversionService {
      * @return The generated FHIR Bundle JSON string
      */
     public String convertCoverage(String rawHl7) {
+        // Ensure consistent hashing by normalizing newlines first
+        String normalizedHl7 = rawHl7.replaceAll("\\r\\n|\\n", "\r");
+
         // Compute a unique hash of the HL7 message for deduplication
-        String hl7Hash = ConversionRecord.computeHash(rawHl7);
+        String hl7Hash = ConversionRecord.computeHash(normalizedHl7);
 
         // Check if this exact HL7 message was already converted successfully
-        var existing = conversionRepository.findByHl7Hash(hl7Hash);
-        if (existing.isPresent() && "SUCCESS".equals(existing.get().getStatus())) {
+        var existingOpt = conversionRepository.findByHl7Hash(hl7Hash);
+        if (existingOpt.isPresent() && "SUCCESS".equals(existingOpt.get().getStatus())) {
             System.out.println("♻️  Duplicate HL7 detected — returning existing FHIR JSON.");
-            return existing.get().getFhirJson();
+            return existingOpt.get().getFhirJson();
         }
 
-        // Create a record to track this conversion attempt
-        ConversionRecord record = new ConversionRecord();
+        // Create a record to track this conversion attempt or update the existing
+        // failed one
+        ConversionRecord record = existingOpt.orElseGet(ConversionRecord::new);
         record.setRawHl7(rawHl7);
         record.setHl7Hash(hl7Hash);
 
@@ -130,6 +134,7 @@ public class ConversionService {
             System.out.println("💾 Step 4: Saving to database...");
             record.setFhirJson(fhirJson);
             record.setStatus("SUCCESS");
+            record.setErrorMessage(null); // Clear any previous errors
             conversionRepository.save(record);
 
             System.out.println("✅ Conversion completed successfully!");
