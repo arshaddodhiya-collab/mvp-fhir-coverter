@@ -53,6 +53,31 @@
             <version>2.2</version>
         </dependency>
 
+        <!-- ==================== HAPI HL7 & FHIR ==================== -->
+        <!-- HAPI HL7v2 for parsing raw messages -->
+        <dependency>
+            <groupId>ca.uhn.hapi</groupId>
+            <artifactId>hapi-base</artifactId>
+            <version>2.6.0</version>
+        </dependency>
+        <dependency>
+            <groupId>ca.uhn.hapi</groupId>
+            <artifactId>hapi-structures-v25</artifactId>
+            <version>2.6.0</version>
+        </dependency>
+
+        <!-- HAPI FHIR for generating strongly-typed resources (R4) -->
+        <dependency>
+            <groupId>ca.uhn.hapi.fhir</groupId>
+            <artifactId>hapi-fhir-base</artifactId>
+            <version>6.10.0</version>
+        </dependency>
+        <dependency>
+            <groupId>ca.uhn.hapi.fhir</groupId>
+            <artifactId>hapi-fhir-structures-r4</artifactId>
+            <version>6.10.0</version>
+        </dependency>
+
         <!-- ==================== TESTING ==================== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

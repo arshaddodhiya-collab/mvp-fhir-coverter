@@ -1,127 +1,80 @@
 package com.nhcx.fhirconverter.fhir;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.parser.IParser;
 import com.nhcx.fhirconverter.mapping.MappingProfile;
 import com.nhcx.fhirconverter.model.Hl7Data;
+import org.hl7.fhir.r4.model.*;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
+import java.time.ZoneId;
 import java.util.*;
 
 /**
- * Builds a FHIR R4 Bundle JSON containing:
- * 1. Patient resource
- * 2. Coverage resource
- * 3. CoverageEligibilityRequest resource
+ * Builds a FHIR R4 Bundle using HAPI FHIR Libraries
  *
  * HOW FHIR JSON IS CONSTRUCTED:
  * =============================
- * Instead of using a full FHIR library (like HAPI FHIR), we manually build
- * the JSON structure using nested Java Maps and Lists. This is simpler for
- * an MVP and helps you understand the FHIR resource structure.
- *
- * The final structure looks like:
- * {
- * "resourceType": "Bundle",
- * "type": "collection",
- * "entry": [
- * { "resource": { ... Patient ... } },
- * { "resource": { ... Coverage ... } },
- * { "resource": { ... CoverageEligibilityRequest ... } }
- * ]
- * }
- *
- * HOW MAPPING IS APPLIED:
- * =======================
- * The MappingProfile tells us WHICH HL7 fields map to WHICH FHIR fields.
- * For example, YAML says:
- * field 3 → Patient.identifier[abha].value
- * field 5.1 → Patient.name.family
- *
- * We read these mappings to understand the INTENDED structure, then build
- * the JSON accordingly. In this MVP, the builder "knows" the mappings
- * conceptually — the YAML serves as the configuration/documentation
- * of the mapping rules.
+ * We use strongly-typed Java objects (e.g. org.hl7.fhir.r4.model.Patient)
+ * instead of raw HashMaps.
+ * This guarantees that we follow the FHIR R4 specification exactly and
+ * provides compile-time safety against typos or incorrect data types.
  */
 @Component
 public class FhirBundleBuilder {
 
-    private final ObjectMapper objectMapper;
+    private final IParser fhirJsonParser;
 
     public FhirBundleBuilder() {
-        this.objectMapper = new ObjectMapper();
-        // Pretty-print the JSON output for readability
-        this.objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
+        // Initialize the standard HAPI FHIR R4 Context
+        FhirContext ctx = FhirContext.forR4();
+        this.fhirJsonParser = ctx.newJsonParser();
+        this.fhirJsonParser.setPrettyPrint(true);
     }
 
-    /**
-     * Builds a FHIR Bundle JSON string from parsed HL7 data.
-     *
-     * @param data    The parsed patient data from the HL7 message
-     * @param profile The mapping profile (used to verify mapping rules)
-     * @return A pretty-printed FHIR Bundle JSON string
-     */
     public String buildBundle(Hl7Data data, MappingProfile profile) {
         try {
-            // Build the FHIR Bundle as a Map structure
-            Map<String, Object> bundle = new LinkedHashMap<>();
-            bundle.put("resourceType", "Bundle");
-            bundle.put("type", "collection");
-
-            // Create the list of entries (each entry wraps a FHIR resource)
-            List<Map<String, Object>> entries = new ArrayList<>();
+            Bundle bundle = new Bundle();
+            bundle.setType(Bundle.BundleType.COLLECTION);
 
             // Entry 1: Patient resource
-            entries.add(wrapResource(buildPatient(data)));
+            bundle.addEntry().setResource(buildPatient(data));
 
             // Entry 2: Coverage resource
-            entries.add(wrapResource(buildCoverage(data)));
+            bundle.addEntry().setResource(buildCoverage(data));
 
             // Entry 3: CoverageEligibilityRequest resource
-            entries.add(wrapResource(buildCoverageEligibilityRequest(data)));
+            bundle.addEntry().setResource(buildCoverageEligibilityRequest(data));
 
             // ========== Claims & Pre-Auth Extensions ==========
 
             // Add Encounter if we have admission data
             if (data.getAdmitDate() != null) {
-                entries.add(wrapResource(buildEncounter(data)));
+                bundle.addEntry().setResource(buildEncounter(data));
             }
 
             // Add Conditions (Diagnoses)
             for (Hl7Data.Diagnosis diag : data.getDiagnoses()) {
-                entries.add(wrapResource(buildCondition(data, diag)));
+                bundle.addEntry().setResource(buildCondition(data, diag));
             }
 
             // Add Procedures
             for (Hl7Data.Procedure proc : data.getProcedures()) {
-                entries.add(wrapResource(buildProcedure(data, proc)));
+                bundle.addEntry().setResource(buildProcedure(data, proc));
             }
 
             // Add Claim if we have diagnoses or procedures
             if (!data.getDiagnoses().isEmpty() || !data.getProcedures().isEmpty()) {
-                entries.add(wrapResource(buildClaim(data)));
+                bundle.addEntry().setResource(buildClaim(data));
             }
 
-            bundle.put("entry", entries);
-
-            // Convert the Map to a JSON string using Jackson
-            return objectMapper.writeValueAsString(bundle);
+            // Let HAPI FHIR serialize the entire object tree into strict JSON
+            return fhirJsonParser.encodeResourceToString(bundle);
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to build FHIR Bundle: " + e.getMessage(), e);
         }
-    }
-
-    /**
-     * Wraps a resource map inside an "entry" object.
-     * FHIR Bundles require each resource to be inside: { "resource": { ... } }
-     */
-    private Map<String, Object> wrapResource(Map<String, Object> resource) {
-        Map<String, Object> entry = new LinkedHashMap<>();
-        entry.put("resource", resource);
-        return entry;
     }
 
     // ==================== FHIR Resource Builders ====================
@@ -133,30 +86,29 @@ public class FhirBundleBuilder {
      * ABHA ID → Patient.identifier[0].value
      * Family name → Patient.name[0].family
      * Given name → Patient.name[0].given[0]
-     * DOB → Patient.birthDate (formatted as YYYY-MM-DD)
+     * DOB → Patient.birthDate
      * Gender → Patient.gender (M→male, F→female)
      */
-    private Map<String, Object> buildPatient(Hl7Data data) {
-        Map<String, Object> patient = new LinkedHashMap<>();
-        patient.put("resourceType", "Patient");
+    private Patient buildPatient(Hl7Data data) {
+        Patient patient = new Patient();
 
         // Identifier — ABHA ID
-        Map<String, Object> identifier = new LinkedHashMap<>();
-        identifier.put("system", "https://ndhm.gov.in/abha");
-        identifier.put("value", data.getAbhaId());
-        patient.put("identifier", Collections.singletonList(identifier));
+        patient.addIdentifier()
+                .setSystem("https://ndhm.gov.in/abha")
+                .setValue(data.getAbhaId());
 
         // Name
-        Map<String, Object> name = new LinkedHashMap<>();
-        name.put("family", data.getFamilyName());
-        name.put("given", Collections.singletonList(data.getGivenName()));
-        patient.put("name", Collections.singletonList(name));
+        if (data.getFamilyName() != null || data.getGivenName() != null) {
+            HumanName name = patient.addName();
+            if (data.getFamilyName() != null) name.setFamily(data.getFamilyName());
+            if (data.getGivenName() != null) name.addGiven(data.getGivenName());
+        }
 
-        // Birth Date — convert from YYYYMMDD to YYYY-MM-DD
-        patient.put("birthDate", formatDate(data.getDateOfBirth()));
+        // Birth Date
+        patient.setBirthDate(parseDate(data.getDateOfBirth()));
 
         // Gender — convert M/F to male/female
-        patient.put("gender", mapGender(data.getGender()));
+        patient.setGender(mapGender(data.getGender()));
 
         return patient;
     }
@@ -166,20 +118,15 @@ public class FhirBundleBuilder {
      *
      * Represents the patient's insurance/health coverage under NHCX.
      */
-    private Map<String, Object> buildCoverage(Hl7Data data) {
-        Map<String, Object> coverage = new LinkedHashMap<>();
-        coverage.put("resourceType", "Coverage");
-        coverage.put("status", "active");
+    private Coverage buildCoverage(Hl7Data data) {
+        Coverage coverage = new Coverage();
+        coverage.setStatus(Coverage.CoverageStatus.ACTIVE);
 
         // Reference back to the Patient
-        Map<String, Object> beneficiary = new LinkedHashMap<>();
-        beneficiary.put("reference", "Patient/" + data.getAbhaId());
-        coverage.put("beneficiary", beneficiary);
+        coverage.getBeneficiary().setReference("Patient/" + data.getAbhaId());
 
         // Payor is the insurance organization (NHCX in this case)
-        Map<String, Object> payor = new LinkedHashMap<>();
-        payor.put("reference", "Organization/NHCX");
-        coverage.put("payor", Collections.singletonList(payor));
+        coverage.addPayor().setReference("Organization/NHCX");
 
         return coverage;
     }
@@ -189,153 +136,106 @@ public class FhirBundleBuilder {
      *
      * This is what gets sent to check if a patient is eligible for coverage.
      */
-    private Map<String, Object> buildCoverageEligibilityRequest(Hl7Data data) {
-        Map<String, Object> request = new LinkedHashMap<>();
-        request.put("resourceType", "CoverageEligibilityRequest");
-        request.put("status", "active");
-        request.put("purpose", Collections.singletonList("validation"));
+    private CoverageEligibilityRequest buildCoverageEligibilityRequest(Hl7Data data) {
+        CoverageEligibilityRequest request = new CoverageEligibilityRequest();
+        request.setStatus(CoverageEligibilityRequest.EligibilityRequestStatus.ACTIVE);
+        request.addPurpose(CoverageEligibilityRequest.EligibilityRequestPurpose.VALIDATION);
 
         // Reference to the Patient
-        Map<String, Object> patient = new LinkedHashMap<>();
-        patient.put("reference", "Patient/" + data.getAbhaId());
-        request.put("patient", patient);
+        request.getPatient().setReference("Patient/" + data.getAbhaId());
 
         // Created date = today
-        request.put("created", LocalDate.now().toString());
+        request.setCreated(new Date());
 
         // Insurer — the organization that provides coverage
-        Map<String, Object> insurer = new LinkedHashMap<>();
-        insurer.put("reference", "Organization/NHCX");
-        request.put("insurer", insurer);
+        request.getInsurer().setReference("Organization/NHCX");
 
         return request;
     }
 
     // ==================== Claim & Clinical Builders ====================
 
-    private Map<String, Object> buildEncounter(Hl7Data data) {
-        Map<String, Object> encounter = new LinkedHashMap<>();
-        encounter.put("resourceType", "Encounter");
-        encounter.put("status", "finished");
+    private Encounter buildEncounter(Hl7Data data) {
+        Encounter encounter = new Encounter();
+        encounter.setStatus(Encounter.EncounterStatus.FINISHED);
+        encounter.getSubject().setReference("Patient/" + data.getAbhaId());
 
-        Map<String, Object> subject = new LinkedHashMap<>();
-        subject.put("reference", "Patient/" + data.getAbhaId());
-        encounter.put("subject", subject);
-
-        Map<String, Object> period = new LinkedHashMap<>();
-        if (data.getAdmitDate() != null)
-            period.put("start", formatDate(data.getAdmitDate()));
-        if (data.getDischargeDate() != null)
-            period.put("end", formatDate(data.getDischargeDate()));
-        if (!period.isEmpty())
-            encounter.put("period", period);
+        Period period = new Period();
+        if (data.getAdmitDate() != null) period.setStart(parseDate(data.getAdmitDate()));
+        if (data.getDischargeDate() != null) period.setEnd(parseDate(data.getDischargeDate()));
+        encounter.setPeriod(period);
 
         return encounter;
     }
 
-    private Map<String, Object> buildCondition(Hl7Data data, Hl7Data.Diagnosis diag) {
-        Map<String, Object> condition = new LinkedHashMap<>();
-        condition.put("resourceType", "Condition");
+    private Condition buildCondition(Hl7Data data, Hl7Data.Diagnosis diag) {
+        Condition condition = new Condition();
+        condition.getSubject().setReference("Patient/" + data.getAbhaId());
 
-        Map<String, Object> subject = new LinkedHashMap<>();
-        subject.put("reference", "Patient/" + data.getAbhaId());
-        condition.put("subject", subject);
-
-        Map<String, Object> code = new LinkedHashMap<>();
-        List<Map<String, Object>> codingList = new ArrayList<>();
-        Map<String, Object> coding = new LinkedHashMap<>();
-        coding.put("code", diag.getCode());
-        codingList.add(coding);
-        code.put("coding", codingList);
-        code.put("text", diag.getDescription());
-        condition.put("code", code);
+        CodeableConcept codeMap = new CodeableConcept();
+        codeMap.addCoding().setCode(diag.getCode());
+        codeMap.setText(diag.getDescription());
+        condition.setCode(codeMap);
 
         return condition;
     }
 
-    private Map<String, Object> buildProcedure(Hl7Data data, Hl7Data.Procedure proc) {
-        Map<String, Object> procedure = new LinkedHashMap<>();
-        procedure.put("resourceType", "Procedure");
-        procedure.put("status", "completed");
+    private Procedure buildProcedure(Hl7Data data, Hl7Data.Procedure proc) {
+        Procedure procedure = new Procedure();
+        procedure.setStatus(Procedure.ProcedureStatus.COMPLETED);
+        procedure.getSubject().setReference("Patient/" + data.getAbhaId());
 
-        Map<String, Object> subject = new LinkedHashMap<>();
-        subject.put("reference", "Patient/" + data.getAbhaId());
-        procedure.put("subject", subject);
+        CodeableConcept codeMap = new CodeableConcept();
+        codeMap.addCoding().setCode(proc.getCode());
+        codeMap.setText(proc.getDescription());
+        procedure.setCode(codeMap);
 
-        Map<String, Object> code = new LinkedHashMap<>();
-        List<Map<String, Object>> codingList = new ArrayList<>();
-        Map<String, Object> coding = new LinkedHashMap<>();
-        coding.put("code", proc.getCode());
-        codingList.add(coding);
-        code.put("coding", codingList);
-        code.put("text", proc.getDescription());
-        procedure.put("code", code);
-
-        if (proc.getDate() != null && !proc.getDate().isEmpty()) {
-            procedure.put("performedDateTime", formatDate(proc.getDate()));
-        }
+        Date procDate = parseDate(proc.getDate());
+        if (procDate != null) procedure.setPerformed(new DateTimeType(procDate));
 
         return procedure;
     }
 
-    private Map<String, Object> buildClaim(Hl7Data data) {
-        Map<String, Object> claim = new LinkedHashMap<>();
-        claim.put("resourceType", "Claim");
-        claim.put("status", "active");
-        claim.put("use", "claim");
-        claim.put("created", LocalDate.now().toString());
+    private Claim buildClaim(Hl7Data data) {
+        Claim claim = new Claim();
+        claim.setStatus(Claim.ClaimStatus.ACTIVE);
+        claim.setUse(Claim.Use.CLAIM);
+        claim.setCreated(new Date());
 
-        // Identifier
         if (data.getPolicyNumber() != null) {
-            Map<String, Object> identifier = new LinkedHashMap<>();
-            identifier.put("value", data.getPolicyNumber());
-            claim.put("identifier", Collections.singletonList(identifier));
+            claim.addIdentifier().setValue(data.getPolicyNumber());
         }
 
-        Map<String, Object> patient = new LinkedHashMap<>();
-        patient.put("reference", "Patient/" + data.getAbhaId());
-        claim.put("patient", patient);
-
-        Map<String, Object> provider = new LinkedHashMap<>();
-        provider.put("reference", "Organization/Hospital"); // Default provider
-        claim.put("provider", provider);
+        claim.getPatient().setReference("Patient/" + data.getAbhaId());
+        claim.getProvider().setReference("Organization/Hospital");
 
         return claim;
     }
 
     // ==================== Helper Methods ====================
 
-    /**
-     * Converts HL7 date format (YYYYMMDD) to FHIR format (YYYY-MM-DD).
-     * Example: "19900415" → "1990-04-15"
-     */
-    private String formatDate(String hl7Date) {
-        if (hl7Date == null || hl7Date.length() != 8) {
-            return hl7Date; // Return as-is if not in expected format
-        }
+    private Date parseDate(String hl7Date) {
+        if (hl7Date == null || hl7Date.length() < 8)
+            return null;
         try {
-            LocalDate date = LocalDate.parse(hl7Date, DateTimeFormatter.BASIC_ISO_DATE);
-            return date.toString(); // Outputs YYYY-MM-DD
+            LocalDate date = LocalDate.of(
+                    Integer.parseInt(hl7Date.substring(0, 4)),
+                    Integer.parseInt(hl7Date.substring(4, 6)),
+                    Integer.parseInt(hl7Date.substring(6, 8)));
+            return Date.from(date.atStartOfDay(ZoneId.systemDefault()).toInstant());
         } catch (Exception e) {
-            return hl7Date; // Return original if parsing fails
+            return null;
         }
     }
 
-    /**
-     * Maps HL7 gender code to FHIR gender value.
-     * M → male
-     * F → female
-     * O → other
-     * U → unknown
-     */
-    private String mapGender(String hl7Gender) {
+    private Enumerations.AdministrativeGender mapGender(String hl7Gender) {
         if (hl7Gender == null)
-            return "unknown";
+            return Enumerations.AdministrativeGender.UNKNOWN;
         return switch (hl7Gender.toUpperCase()) {
-            case "M" -> "male";
-            case "F" -> "female";
-            case "O" -> "other";
-            default -> "unknown";
+            case "M" -> Enumerations.AdministrativeGender.MALE;
+            case "F" -> Enumerations.AdministrativeGender.FEMALE;
+            case "O" -> Enumerations.AdministrativeGender.OTHER;
+            default -> Enumerations.AdministrativeGender.UNKNOWN;
         };
     }
 }
