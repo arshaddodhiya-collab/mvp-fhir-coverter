@@ -3,8 +3,8 @@ package com.nhcx.fhirconverter.parser;
 import com.nhcx.fhirconverter.model.Hl7Data;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.List;
+// import java.util.ArrayList;
+// import java.util.List;
 
 /**
  * Robust HL7 Parser.
