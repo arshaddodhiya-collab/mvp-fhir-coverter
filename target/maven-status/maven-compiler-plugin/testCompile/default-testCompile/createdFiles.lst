@@ -1,3 +1,5 @@
 com/nhcx/fhirconverter/parser/Hl7ParserTest.class
+com/nhcx/fhirconverter/parser/JsonInputParserTest.class
 com/nhcx/fhirconverter/fhir/FhirValidatorServiceTest.class
+com/nhcx/fhirconverter/parser/CsvInputParserTest.class
 com/nhcx/fhirconverter/FhirConverterApplicationTests.class

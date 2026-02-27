@@ -112,16 +112,28 @@ public class ConversionService {
         // Compute hash for deduplication
         String inputHash = ConversionRecord.computeHash(rawInput);
 
-        // Check for duplicate
+        // Check for duplicate (TEMPORARILY DISABLED FOR TESTING)
         var existingOpt = conversionRepository.findByHl7Hash(inputHash);
-        if (existingOpt.isPresent() && "SUCCESS".equals(existingOpt.get().getStatus())) {
-            System.out.println("♻️  Duplicate input detected — returning existing FHIR JSON.");
-            return existingOpt.get().getFhirJson();
-        }
+        // if (existingOpt.isPresent() &&
+        // "SUCCESS".equals(existingOpt.get().getStatus())) {
+        // System.out.println("♻️ Duplicate input detected — returning existing FHIR
+        // JSON.");
+        // return existingOpt.get().getFhirJson();
+        // }
 
         ConversionRecord record = existingOpt.orElseGet(ConversionRecord::new);
         record.setRawHl7(rawInput);
         record.setHl7Hash(inputHash);
+
+        // Early input validation — reject if critical fields are missing
+        if (parsedData.getAbhaId() == null || parsedData.getAbhaId().trim().isEmpty()) {
+            String errorMsg = "Input validation failed: 'abhaId' is required but was missing or invalid";
+            System.out.println("❌ " + errorMsg);
+            record.setStatus("ERROR");
+            record.setErrorMessage(errorMsg);
+            conversionRepository.save(record);
+            throw new RuntimeException(errorMsg);
+        }
 
         try {
             // Step 2: Load the YAML mapping profile

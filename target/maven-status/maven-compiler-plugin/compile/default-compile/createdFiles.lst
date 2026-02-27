@@ -1,9 +1,11 @@
+com/nhcx/fhirconverter/parser/CsvInputParser.class
 com/nhcx/fhirconverter/mapping/MappingLoader.class
 com/nhcx/fhirconverter/mapping/MappingProfile.class
 com/nhcx/fhirconverter/model/Hl7Data$Procedure.class
 com/nhcx/fhirconverter/repository/ConversionRepository.class
 com/nhcx/fhirconverter/model/Hl7Data.class
 com/nhcx/fhirconverter/fhir/FhirValidatorService.class
+com/nhcx/fhirconverter/parser/JsonInputParser.class
 com/nhcx/fhirconverter/parser/Hl7Parser.class
 com/nhcx/fhirconverter/fhir/FhirBundleBuilder.class
 com/nhcx/fhirconverter/model/ConversionRecord.class
