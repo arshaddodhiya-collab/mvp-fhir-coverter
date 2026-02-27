@@ -7,6 +7,7 @@ import com.nhcx.fhirconverter.model.ConversionRecord;
 import com.nhcx.fhirconverter.model.Hl7Data;
 import com.nhcx.fhirconverter.parser.Hl7Parser;
 import com.nhcx.fhirconverter.repository.ConversionRepository;
+import com.nhcx.fhirconverter.fhir.FhirValidatorService;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -68,6 +69,7 @@ public class ConversionService {
     private final MappingLoader mappingLoader;
     private final FhirBundleBuilder fhirBundleBuilder;
     private final ConversionRepository conversionRepository;
+    private final FhirValidatorService fhirValidatorService;
 
     /**
      * Constructor injection: Spring automatically provides all dependencies.
@@ -76,11 +78,13 @@ public class ConversionService {
     public ConversionService(Hl7Parser hl7Parser,
             MappingLoader mappingLoader,
             FhirBundleBuilder fhirBundleBuilder,
-            ConversionRepository conversionRepository) {
+            ConversionRepository conversionRepository,
+            FhirValidatorService fhirValidatorService) {
         this.hl7Parser = hl7Parser;
         this.mappingLoader = mappingLoader;
         this.fhirBundleBuilder = fhirBundleBuilder;
         this.conversionRepository = conversionRepository;
+        this.fhirValidatorService = fhirValidatorService;
     }
 
     /**
@@ -129,6 +133,10 @@ public class ConversionService {
             // Step 3: Build the FHIR Bundle JSON
             System.out.println("🏗️  Step 3: Building FHIR Bundle...");
             String fhirJson = fhirBundleBuilder.buildBundle(parsedData, profile);
+
+            // Step 3.5: Validate the FHIR Bundle
+            System.out.println("🛡️  Step 3.5: Validating FHIR Bundle against NHCX profiles...");
+            fhirValidatorService.validate(fhirJson);
 
             // Step 4: Save successful conversion to database
             System.out.println("💾 Step 4: Saving to database...");

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report.xsd" version="3.0.2" name="com.nhcx.fhirconverter.parser.Hl7ParserTest" time="0.07" tests="1" errors="0" skipped="0" failures="0">
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report.xsd" version="3.0.2" name="com.nhcx.fhirconverter.fhir.FhirValidatorServiceTest" time="4.797" tests="2" errors="0" skipped="0" failures="0">
   <properties>
     <property name="java.specification.version" value="17"/>
     <property name="sun.jnu.encoding" value="UTF-8"/>
@@ -7,6 +7,8 @@
     <property name="java.vm.vendor" value="Ubuntu"/>
     <property name="sun.arch.data.model" value="64"/>
     <property name="java.vendor.url" value="https://ubuntu.com/"/>
+    <property name="user.timezone" value="Asia/Kolkata"/>
+    <property name="org.jboss.logging.provider" value="slf4j"/>
     <property name="os.name" value="Linux"/>
     <property name="java.vm.specification.version" value="17"/>
     <property name="sun.java.launcher" value="SUN_STANDARD"/>
@@ -27,6 +29,8 @@
     <property name="line.separator" value="&#10;"/>
     <property name="java.vm.specification.vendor" value="Oracle Corporation"/>
     <property name="java.specification.name" value="Java Platform API Specification"/>
+    <property name="FILE_LOG_CHARSET" value="UTF-8"/>
+    <property name="java.awt.headless" value="true"/>
     <property name="surefire.real.class.path" value="/home/artem/test/fhir-converter/target/surefire/surefirebooter-20260227114022787_3.jar"/>
     <property name="sun.management.compiler" value="HotSpot 64-Bit Tiered Compilers"/>
     <property name="java.runtime.version" value="17.0.18+8-Ubuntu-124.04.1"/>
@@ -39,10 +43,13 @@
     <property name="localRepository" value="/home/artem/.m2/repository"/>
     <property name="java.vendor.url.bug" value="https://bugs.launchpad.net/ubuntu/+source/openjdk-17"/>
     <property name="java.io.tmpdir" value="/tmp"/>
+    <property name="com.zaxxer.hikari.pool_number" value="1"/>
     <property name="java.version" value="17.0.18"/>
     <property name="user.dir" value="/home/artem/test/fhir-converter"/>
     <property name="os.arch" value="amd64"/>
     <property name="java.vm.specification.name" value="Java Virtual Machine Specification"/>
+    <property name="PID" value="194516"/>
+    <property name="CONSOLE_LOG_CHARSET" value="UTF-8"/>
     <property name="native.encoding" value="UTF-8"/>
     <property name="java.library.path" value="/usr/java/packages/lib:/usr/lib/x86_64-linux-gnu/jni:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/usr/lib/jni:/lib:/usr/lib"/>
     <property name="java.vm.info" value="mixed mode, sharing"/>
@@ -52,5 +59,23 @@
     <property name="sun.io.unicode.encoding" value="UnicodeLittle"/>
     <property name="java.class.version" value="61.0"/>
   </properties>
-  <testcase name="testParse" classname="com.nhcx.fhirconverter.parser.Hl7ParserTest" time="0.039"/>
+  <testcase name="validateValidFhirJson_success" classname="com.nhcx.fhirconverter.fhir.FhirValidatorServiceTest" time="4.423">
+    <system-out><![CDATA[2026-02-27T11:40:28.035+05:30  INFO 194516 --- [           main] ca.uhn.fhir.context.FhirContext          : Creating new FHIR context for FHIR version [R4]
+2026-02-27T11:40:28.139+05:30  INFO 194516 --- [           main] .u.f.c.s.DefaultProfileValidationSupport : Loading structure definitions from classpath: /org/hl7/fhir/r4/model/profile/profiles-resources.xml
+2026-02-27T11:40:28.152+05:30  INFO 194516 --- [           main] ca.uhn.fhir.util.XmlUtil                 : Unable to determine StAX implementation: java.xml/META-INF/MANIFEST.MF not found
+2026-02-27T11:40:30.151+05:30  INFO 194516 --- [           main] .u.f.c.s.DefaultProfileValidationSupport : Loading structure definitions from classpath: /org/hl7/fhir/r4/model/profile/profiles-types.xml
+2026-02-27T11:40:30.243+05:30  INFO 194516 --- [           main] .u.f.c.s.DefaultProfileValidationSupport : Loading structure definitions from classpath: /org/hl7/fhir/r4/model/profile/profiles-others.xml
+2026-02-27T11:40:30.619+05:30  INFO 194516 --- [           main] .u.f.c.s.DefaultProfileValidationSupport : Loading structure definitions from classpath: /org/hl7/fhir/r4/model/extension/extension-definitions.xml
+2026-02-27T11:40:31.642+05:30  INFO 194516 --- [           main] .u.f.c.s.DefaultProfileValidationSupport : Loading CodeSystem/ValueSet from classpath: /org/hl7/fhir/r4/model/valueset/valuesets.xml
+2026-02-27T11:40:31.957+05:30  WARN 194516 --- [           main] ca.uhn.fhir.parser.LenientErrorHandler   : Unknown element 'author' found while parsing
+2026-02-27T11:40:31.958+05:30  INFO 194516 --- [           main] .u.f.c.s.DefaultProfileValidationSupport : Loading CodeSystem/ValueSet from classpath: /org/hl7/fhir/r4/model/valueset/v2-tables.xml
+2026-02-27T11:40:32.283+05:30  WARN 194516 --- [           main] ca.uhn.fhir.parser.LenientErrorHandler   : Unknown element 'author' found while parsing
+2026-02-27T11:40:32.283+05:30  INFO 194516 --- [           main] .u.f.c.s.DefaultProfileValidationSupport : Loading CodeSystem/ValueSet from classpath: /org/hl7/fhir/r4/model/valueset/v3-codesystems.xml
+2026-02-27T11:40:32.428+05:30  WARN 194516 --- [           main] ca.uhn.fhir.parser.LenientErrorHandler   : Unknown element 'author' found while parsing
+]]></system-out>
+  </testcase>
+  <testcase name="validateInvalidFhirJson_throwsValidationException" classname="com.nhcx.fhirconverter.fhir.FhirValidatorServiceTest" time="0.372">
+    <system-out><![CDATA[2026-02-27T11:40:32.458+05:30  INFO 194516 --- [           main] ca.uhn.fhir.context.FhirContext          : Creating new FHIR context for FHIR version [R4]
+]]></system-out>
+  </testcase>
 </testsuite>

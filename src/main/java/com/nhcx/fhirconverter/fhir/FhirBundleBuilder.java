@@ -39,34 +39,48 @@ public class FhirBundleBuilder {
             bundle.setType(Bundle.BundleType.COLLECTION);
 
             // Entry 1: Patient resource
-            bundle.addEntry().setResource(buildPatient(data));
+            bundle.addEntry()
+                    .setFullUrl("urn:uuid:" + UUID.randomUUID())
+                    .setResource(buildPatient(data));
 
             // Entry 2: Coverage resource
-            bundle.addEntry().setResource(buildCoverage(data));
+            bundle.addEntry()
+                    .setFullUrl("urn:uuid:" + UUID.randomUUID())
+                    .setResource(buildCoverage(data));
 
             // Entry 3: CoverageEligibilityRequest resource
-            bundle.addEntry().setResource(buildCoverageEligibilityRequest(data));
+            bundle.addEntry()
+                    .setFullUrl("urn:uuid:" + UUID.randomUUID())
+                    .setResource(buildCoverageEligibilityRequest(data));
 
             // ========== Claims & Pre-Auth Extensions ==========
 
             // Add Encounter if we have admission data
             if (data.getAdmitDate() != null) {
-                bundle.addEntry().setResource(buildEncounter(data));
+                bundle.addEntry()
+                        .setFullUrl("urn:uuid:" + UUID.randomUUID())
+                        .setResource(buildEncounter(data));
             }
 
             // Add Conditions (Diagnoses)
             for (Hl7Data.Diagnosis diag : data.getDiagnoses()) {
-                bundle.addEntry().setResource(buildCondition(data, diag));
+                bundle.addEntry()
+                        .setFullUrl("urn:uuid:" + UUID.randomUUID())
+                        .setResource(buildCondition(data, diag));
             }
 
             // Add Procedures
             for (Hl7Data.Procedure proc : data.getProcedures()) {
-                bundle.addEntry().setResource(buildProcedure(data, proc));
+                bundle.addEntry()
+                        .setFullUrl("urn:uuid:" + UUID.randomUUID())
+                        .setResource(buildProcedure(data, proc));
             }
 
             // Add Claim if we have diagnoses or procedures
             if (!data.getDiagnoses().isEmpty() || !data.getProcedures().isEmpty()) {
-                bundle.addEntry().setResource(buildClaim(data));
+                bundle.addEntry()
+                        .setFullUrl("urn:uuid:" + UUID.randomUUID())
+                        .setResource(buildClaim(data));
             }
 
             // Let HAPI FHIR serialize the entire object tree into strict JSON
@@ -100,8 +114,10 @@ public class FhirBundleBuilder {
         // Name
         if (data.getFamilyName() != null || data.getGivenName() != null) {
             HumanName name = patient.addName();
-            if (data.getFamilyName() != null) name.setFamily(data.getFamilyName());
-            if (data.getGivenName() != null) name.addGiven(data.getGivenName());
+            if (data.getFamilyName() != null)
+                name.setFamily(data.getFamilyName());
+            if (data.getGivenName() != null)
+                name.addGiven(data.getGivenName());
         }
 
         // Birth Date
@@ -161,8 +177,10 @@ public class FhirBundleBuilder {
         encounter.getSubject().setReference("Patient/" + data.getAbhaId());
 
         Period period = new Period();
-        if (data.getAdmitDate() != null) period.setStart(parseDate(data.getAdmitDate()));
-        if (data.getDischargeDate() != null) period.setEnd(parseDate(data.getDischargeDate()));
+        if (data.getAdmitDate() != null)
+            period.setStart(parseDate(data.getAdmitDate()));
+        if (data.getDischargeDate() != null)
+            period.setEnd(parseDate(data.getDischargeDate()));
         encounter.setPeriod(period);
 
         return encounter;
@@ -191,7 +209,8 @@ public class FhirBundleBuilder {
         procedure.setCode(codeMap);
 
         Date procDate = parseDate(proc.getDate());
-        if (procDate != null) procedure.setPerformed(new DateTimeType(procDate));
+        if (procDate != null)
+            procedure.setPerformed(new DateTimeType(procDate));
 
         return procedure;
     }
@@ -208,6 +227,16 @@ public class FhirBundleBuilder {
 
         claim.getPatient().setReference("Patient/" + data.getAbhaId());
         claim.getProvider().setReference("Organization/Hospital");
+
+        // Set Mandatory Fields for standard Claim
+        claim.getType().addCoding().setCode("institutional")
+                .setSystem("http://terminology.hl7.org/CodeSystem/claim-type");
+        claim.getPriority().addCoding().setCode("normal")
+                .setSystem("http://terminology.hl7.org/CodeSystem/processpriority");
+
+        String coverageRef = data.getPolicyNumber() != null ? data.getPolicyNumber() : "unknown-policy";
+        claim.addInsurance().setSequence(1).setFocal(true).getCoverage()
+                .setReference("Coverage/" + coverageRef);
 
         return claim;
     }

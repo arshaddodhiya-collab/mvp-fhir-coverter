@@ -1,6 +1,8 @@
 /home/artem/test/fhir-converter/src/main/java/com/nhcx/fhirconverter/FhirConverterApplication.java
 /home/artem/test/fhir-converter/src/main/java/com/nhcx/fhirconverter/controller/ConversionController.java
+/home/artem/test/fhir-converter/src/main/java/com/nhcx/fhirconverter/exception/ValidationException.java
 /home/artem/test/fhir-converter/src/main/java/com/nhcx/fhirconverter/fhir/FhirBundleBuilder.java
+/home/artem/test/fhir-converter/src/main/java/com/nhcx/fhirconverter/fhir/FhirValidatorService.java
 /home/artem/test/fhir-converter/src/main/java/com/nhcx/fhirconverter/mapping/MappingLoader.java
 /home/artem/test/fhir-converter/src/main/java/com/nhcx/fhirconverter/mapping/MappingProfile.java
 /home/artem/test/fhir-converter/src/main/java/com/nhcx/fhirconverter/model/ConversionRecord.java
