@@ -4,11 +4,13 @@ import com.nhcx.fhirconverter.fhir.FhirBundleBuilder;
 import com.nhcx.fhirconverter.mapping.MappingLoader;
 import com.nhcx.fhirconverter.mapping.MappingProfile;
 import com.nhcx.fhirconverter.model.ConversionRecord;
+import com.nhcx.fhirconverter.model.ErrorLog;
 import com.nhcx.fhirconverter.model.Hl7Data;
 import com.nhcx.fhirconverter.parser.CsvInputParser;
 import com.nhcx.fhirconverter.parser.Hl7Parser;
 import com.nhcx.fhirconverter.parser.JsonInputParser;
 import com.nhcx.fhirconverter.repository.ConversionRepository;
+import com.nhcx.fhirconverter.repository.ErrorLogRepository;
 import com.nhcx.fhirconverter.fhir.FhirValidatorService;
 import org.springframework.stereotype.Service;
 
@@ -35,6 +37,7 @@ public class ConversionService {
     private final FhirBundleBuilder fhirBundleBuilder;
     private final ConversionRepository conversionRepository;
     private final FhirValidatorService fhirValidatorService;
+    private final ErrorLogRepository errorLogRepository;
 
     public ConversionService(Hl7Parser hl7Parser,
             JsonInputParser jsonInputParser,
@@ -42,7 +45,8 @@ public class ConversionService {
             MappingLoader mappingLoader,
             FhirBundleBuilder fhirBundleBuilder,
             ConversionRepository conversionRepository,
-            FhirValidatorService fhirValidatorService) {
+            FhirValidatorService fhirValidatorService,
+            ErrorLogRepository errorLogRepository) {
         this.hl7Parser = hl7Parser;
         this.jsonInputParser = jsonInputParser;
         this.csvInputParser = csvInputParser;
@@ -50,6 +54,7 @@ public class ConversionService {
         this.fhirBundleBuilder = fhirBundleBuilder;
         this.conversionRepository = conversionRepository;
         this.fhirValidatorService = fhirValidatorService;
+        this.errorLogRepository = errorLogRepository;
     }
 
     // ==================== Public Entry Points ====================
@@ -61,10 +66,14 @@ public class ConversionService {
         String normalizedHl7 = rawHl7.replaceAll("\\r\\n|\\n", "\r");
 
         System.out.println("📋 Step 1: Parsing HL7 message...");
-        Hl7Data parsedData = hl7Parser.parse(rawHl7);
-        System.out.println("   Parsed: " + parsedData);
-
-        return convertFromData(parsedData, normalizedHl7);
+        try {
+            Hl7Data parsedData = hl7Parser.parse(rawHl7);
+            System.out.println("   Parsed: " + parsedData);
+            return convertFromData(parsedData, normalizedHl7);
+        } catch (Exception e) {
+            saveToDeadLetterQueue(normalizedHl7, "Parsing failed: " + e.getMessage());
+            throw new RuntimeException("Parsing failed: " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -72,10 +81,14 @@ public class ConversionService {
      */
     public String convertFromJson(String json) {
         System.out.println("📋 Step 1: Parsing JSON input...");
-        Hl7Data parsedData = jsonInputParser.parse(json);
-        System.out.println("   Parsed: " + parsedData);
-
-        return convertFromData(parsedData, json);
+        try {
+            Hl7Data parsedData = jsonInputParser.parse(json);
+            System.out.println("   Parsed: " + parsedData);
+            return convertFromData(parsedData, json);
+        } catch (Exception e) {
+            saveToDeadLetterQueue(json, "JSON Parsing failed: " + e.getMessage());
+            throw new RuntimeException("JSON Parsing failed: " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -83,17 +96,25 @@ public class ConversionService {
      */
     public String convertFromCsv(String csv) {
         System.out.println("📋 Step 1: Parsing CSV input...");
-        Hl7Data parsedData = csvInputParser.parse(csv);
-        System.out.println("   Parsed: " + parsedData);
+        try {
+            Hl7Data parsedData = csvInputParser.parse(csv);
+            System.out.println("   Parsed: " + parsedData);
+            return convertFromData(parsedData, csv);
+        } catch (Exception e) {
+            saveToDeadLetterQueue(csv, "CSV Parsing failed: " + e.getMessage());
+            throw new RuntimeException("CSV Parsing failed: " + e.getMessage(), e);
+        }
+    }
 
-        return convertFromData(parsedData, csv);
+    public List<ConversionRecord> getHistory() {
+        return conversionRepository.findAll();
     }
 
     /**
-     * Returns all conversion records from the database.
+     * Returns all error logs (dead letter queue) from the database.
      */
-    public List<ConversionRecord> getHistory() {
-        return conversionRepository.findAll();
+    public List<ErrorLog> getErrors() {
+        return errorLogRepository.findAll();
     }
 
     // ==================== Shared Pipeline ====================
@@ -132,6 +153,7 @@ public class ConversionService {
             record.setStatus("ERROR");
             record.setErrorMessage(errorMsg);
             conversionRepository.save(record);
+            saveToDeadLetterQueue(rawInput, errorMsg);
             throw new RuntimeException(errorMsg);
         }
 
@@ -163,8 +185,21 @@ public class ConversionService {
             record.setStatus("ERROR");
             record.setErrorMessage(e.getMessage());
             conversionRepository.save(record);
+            saveToDeadLetterQueue(rawInput, e.getMessage());
 
             throw new RuntimeException("Conversion failed: " + e.getMessage(), e);
+        }
+    }
+
+    private void saveToDeadLetterQueue(String rawInput, String errorMsg) {
+        try {
+            ErrorLog errorLog = new ErrorLog();
+            errorLog.setRawMessage(rawInput);
+            errorLog.setErrorCause(errorMsg);
+            errorLogRepository.save(errorLog);
+            System.out.println("📥 Saved failed message to Dead Letter Queue (error_logs)");
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to write to Dead Letter Queue: " + e.getMessage());
         }
     }
 }

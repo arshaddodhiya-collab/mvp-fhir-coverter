@@ -1,6 +1,7 @@
 package com.nhcx.fhirconverter.controller;
 
 import com.nhcx.fhirconverter.model.ConversionRecord;
+import com.nhcx.fhirconverter.model.ErrorLog;
 import com.nhcx.fhirconverter.service.ConversionService;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -105,6 +106,17 @@ public class ConversionController {
     public ResponseEntity<List<ConversionRecord>> getHistory() {
         List<ConversionRecord> records = conversionService.getHistory();
         return ResponseEntity.ok(records);
+    }
+
+    /**
+     * GET /api/convert/errors
+     *
+     * Returns a list of all error logs from the database (Dead Letter Queue).
+     */
+    @GetMapping("/errors")
+    public ResponseEntity<List<ErrorLog>> getErrors() {
+        List<ErrorLog> errors = conversionService.getErrors();
+        return ResponseEntity.ok(errors);
     }
 
     // ==================== Helpers ====================

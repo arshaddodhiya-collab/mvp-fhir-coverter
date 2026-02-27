@@ -42,6 +42,7 @@
     // ---------- State ----------
     let currentFormat = 'hl7';
     let historyData = [];
+    let dlqData = [];
 
     // ---------- DOM Refs ----------
     const $ = (sel) => document.querySelector(sel);
@@ -62,6 +63,14 @@
     const modalOverlay = $('#modal-overlay');
     const modalCode = $('#modal-code');
     const modalClose = $('#modal-close');
+    
+    const btnRefreshDlq = $('#btn-refresh-dlq');
+    const dlqTbody = $('#dlq-tbody');
+    const dlqEmpty = $('#dlq-empty');
+    const dlqTable = $('#dlq-table');
+    const dlqModalOverlay = $('#dlq-modal-overlay');
+    const dlqModalCode = $('#dlq-modal-code');
+    const dlqModalClose = $('#dlq-modal-close');
 
     // ---------- Initialise ----------
     function init() {
@@ -70,6 +79,7 @@
         bindButtons();
         bindModal();
         loadHistory();
+        loadDlq();
     }
 
     // ===================================================================
@@ -90,7 +100,9 @@
     function showSection(name) {
         $('#converter').style.display = name === 'converter' ? '' : 'none';
         $('#history').style.display = name === 'history' ? '' : 'none';
+        $('#dlq').style.display = name === 'dlq' ? '' : 'none';
         if (name === 'history') loadHistory();
+        if (name === 'dlq') loadDlq();
     }
 
     // ===================================================================
@@ -123,6 +135,7 @@
         });
         btnCopy.addEventListener('click', copyOutput);
         btnRefreshHistory.addEventListener('click', loadHistory);
+        btnRefreshDlq.addEventListener('click', loadDlq);
     }
 
     // ===================================================================
@@ -176,6 +189,7 @@
 
             // Refresh stats
             loadHistory();
+            loadDlq();
 
         } catch (err) {
             toast(`Conversion failed: ${err.message}`, 'error');
@@ -299,6 +313,65 @@
     }
 
     // ===================================================================
+    // DLQ
+    // ===================================================================
+    async function loadDlq() {
+        try {
+            const resp = await fetch(API + '/errors');
+            if (!resp.ok) throw new Error('Failed to load DLQ');
+            dlqData = await resp.json();
+
+            renderDlq();
+        } catch (err) {
+            console.warn('DLQ load failed:', err);
+        }
+    }
+
+    function renderDlq() {
+        if (!dlqData.length) {
+            dlqTable.style.display = 'none';
+            dlqEmpty.style.display = '';
+            return;
+        }
+
+        dlqTable.style.display = '';
+        dlqEmpty.style.display = 'none';
+
+        // Sort newest first
+        const sorted = [...dlqData].sort((a, b) => {
+            return new Date(b.createdAt) - new Date(a.createdAt);
+        });
+
+        dlqTbody.innerHTML = sorted.map(r => {
+            const ts = formatTimestamp(r.createdAt);
+            const errMsg = r.errorCause || r.errorMessage
+                ? `<span style="color:var(--error);font-size:.85rem;">${escapeHtml(r.errorCause || r.errorMessage)}</span>`
+                : '<span style="color:var(--text-muted);">—</span>';
+            const viewBtn = r.rawMessage
+                ? `<button class="btn btn--secondary btn--sm view-dlq-btn" data-id="${r.id}"><i class="fa-solid fa-eye"></i> View Raw</button>`
+                : '';
+
+            return `<tr>
+                <td><strong>#${r.id}</strong></td>
+                <td>${errMsg}</td>
+                <td>${ts}</td>
+                <td>${viewBtn}</td>
+            </tr>`;
+        }).join('');
+
+        // Re-bind view buttons
+        $$('.view-dlq-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = parseInt(btn.dataset.id, 10);
+                const record = dlqData.find(r => r.id === id);
+                if (record && record.rawMessage) {
+                    openDlqModal(record.rawMessage);
+                }
+            });
+        });
+    }
+
+    // ===================================================================
     // STATS
     // ===================================================================
     function updateStats() {
@@ -342,15 +415,7 @@
     // ===================================================================
     // MODAL
     // ===================================================================
-    function bindModal() {
-        modalClose.addEventListener('click', closeModal);
-        modalOverlay.addEventListener('click', (e) => {
-            if (e.target === modalOverlay) closeModal();
-        });
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') closeModal();
-        });
-    }
+
 
     function openModal(jsonStr) {
         let pretty;
@@ -367,6 +432,36 @@
     function closeModal() {
         modalOverlay.style.display = 'none';
         document.body.style.overflow = '';
+    }
+
+    function openDlqModal(rawStr) {
+        dlqModalCode.textContent = rawStr;
+        dlqModalOverlay.style.display = '';
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeDlqModal() {
+        dlqModalOverlay.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+
+    function bindModal() {
+        modalClose.addEventListener('click', closeModal);
+        modalOverlay.addEventListener('click', (e) => {
+            if (e.target === modalOverlay) closeModal();
+        });
+        
+        dlqModalClose.addEventListener('click', closeDlqModal);
+        dlqModalOverlay.addEventListener('click', (e) => {
+            if (e.target === dlqModalOverlay) closeDlqModal();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+                closeDlqModal();
+            }
+        });
     }
 
     // ===================================================================

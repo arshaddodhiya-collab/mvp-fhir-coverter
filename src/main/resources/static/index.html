@@ -49,6 +49,9 @@
           <a href="#history" class="header__link" data-section="history">
             <i class="fa-solid fa-clock-rotate-left"></i> History
           </a>
+          <a href="#dlq" class="header__link" data-section="dlq">
+            <i class="fa-solid fa-envelope-open-text"></i> DLQ
+          </a>
         </nav>
       </div>
     </header>
@@ -235,6 +238,46 @@
           </div>
         </div>
       </section>
+
+      <!-- ===== DLQ SECTION ===== -->
+      <section class="section section--dlq" id="dlq" style="display: none">
+        <div class="card card--full">
+          <div class="card__header">
+            <h2 class="card__title">
+              <i class="fa-solid fa-envelope-open-text"></i> Dead Letter Queue
+              (Failed Conversions)
+            </h2>
+            <button
+              class="btn btn--secondary"
+              id="btn-refresh-dlq"
+              title="Refresh DLQ"
+            >
+              <i class="fa-solid fa-arrows-rotate"></i> Refresh
+            </button>
+          </div>
+          <div class="card__body">
+            <div class="table-wrapper" id="dlq-table-wrapper">
+              <table class="table" id="dlq-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Error Cause</th>
+                    <th>Timestamp</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="dlq-tbody">
+                  <!-- filled by JS -->
+                </tbody>
+              </table>
+              <div class="table-empty" id="dlq-empty" style="display: none">
+                <i class="fa-solid fa-check-double"></i>
+                <p>No failed conversions!</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- ========== TOAST CONTAINER ========== -->
@@ -253,6 +296,23 @@
         </div>
         <div class="modal__body">
           <pre class="output-json"><code id="modal-code"></code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== MODAL (DLQ Raw Viewer) ========== -->
+    <div class="modal-overlay" id="dlq-modal-overlay" style="display: none">
+      <div class="modal" id="dlq-modal">
+        <div class="modal__header">
+          <h3 class="modal__title">
+            <i class="fa-solid fa-file-code"></i> Raw Failed Message
+          </h3>
+          <button class="btn btn--icon modal__close" id="dlq-modal-close">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <div class="modal__body">
+          <pre class="output-json"><code id="dlq-modal-code"></code></pre>
         </div>
       </div>
     </div>
