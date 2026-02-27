@@ -1,3 +1,5 @@
 /home/artem/test/fhir-converter/src/test/java/com/nhcx/fhirconverter/FhirConverterApplicationTests.java
 /home/artem/test/fhir-converter/src/test/java/com/nhcx/fhirconverter/fhir/FhirValidatorServiceTest.java
+/home/artem/test/fhir-converter/src/test/java/com/nhcx/fhirconverter/parser/CsvInputParserTest.java
 /home/artem/test/fhir-converter/src/test/java/com/nhcx/fhirconverter/parser/Hl7ParserTest.java
+/home/artem/test/fhir-converter/src/test/java/com/nhcx/fhirconverter/parser/JsonInputParserTest.java

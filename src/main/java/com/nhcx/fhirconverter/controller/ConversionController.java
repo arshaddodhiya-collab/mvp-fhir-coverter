@@ -13,80 +13,106 @@ import java.util.List;
  *
  * ENDPOINTS:
  * ==========
- * POST /api/convert/coverage → Converts HL7 to FHIR CoverageEligibilityRequest
+ * POST /api/convert/coverage → Converts HL7 to FHIR (text/plain input)
+ * POST /api/convert/json → Converts JSON to FHIR (application/json input)
+ * POST /api/convert/csv → Converts CSV to FHIR (text/plain input)
  * GET /api/convert/history → Returns all past conversion records
- *
- * HOW IT WORKS:
- * 1. Client sends an HTTP POST with the raw HL7 message in the body
- * 2. Controller receives the request and delegates to ConversionService
- * 3. ConversionService runs the full pipeline (parse → map → build → save)
- * 4. Controller returns the FHIR JSON response to the client
  */
-@RestController // Marks this as a REST controller (returns JSON, not HTML)
-@RequestMapping("/api/convert") // Base path for all endpoints in this controller
+@RestController
+@RequestMapping("/api/convert")
 public class ConversionController {
 
     private final ConversionService conversionService;
 
-    /**
-     * Constructor injection: Spring provides the ConversionService automatically.
-     */
     public ConversionController(ConversionService conversionService) {
         this.conversionService = conversionService;
     }
+
+    // ==================== HL7 Input ====================
 
     /**
      * POST /api/convert/coverage
      *
      * Accepts a raw HL7 message as plain text and returns a FHIR Bundle JSON.
-     *
-     * Example usage with curl:
-     * curl -X POST http://localhost:8080/api/convert/coverage \
-     * -H "Content-Type: text/plain" \
-     * -d "PID|1||ABHA123||Sharma^Rahul||19900415|M"
-     *
-     * @param rawHl7 The raw HL7 message in the request body
-     * @return FHIR Bundle JSON (200 OK) or error message (500)
      */
-    @PostMapping(value = "/coverage", consumes = MediaType.TEXT_PLAIN_VALUE, // Accepts plain text input
-            produces = MediaType.APPLICATION_JSON_VALUE // Returns JSON output
-    )
+    @PostMapping(value = "/coverage", consumes = MediaType.TEXT_PLAIN_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<String> convertCoverage(@RequestBody String rawHl7) {
         try {
-            // HL7 strictly requires '\r' (carriage return) as the segment terminator.
-            // Often, curl or HTTP tools send '\n' or '\r\n' instead. We normalize it safely
-            // here.
             String normalizedHl7 = rawHl7.replaceAll("\\r\\n|\\n", "\r");
-
-            // Delegate to service layer for the actual conversion
             String fhirJson = conversionService.convertCoverage(normalizedHl7);
-
-            // Return the FHIR JSON with 200 OK status
             return ResponseEntity.ok(fhirJson);
-
         } catch (Exception e) {
-            // Return an error response with 500 status
-            String errorJson = String.format(
-                    "{\"error\": \"Conversion failed\", \"message\": \"%s\"}",
-                    e.getMessage().replace("\"", "'"));
-            return ResponseEntity
-                    .internalServerError()
-                    .body(errorJson);
+            return errorResponse(e);
         }
     }
+
+    // ==================== JSON Input ====================
+
+    /**
+     * POST /api/convert/json
+     *
+     * Accepts a JSON object and returns a FHIR Bundle JSON.
+     *
+     * Example body:
+     * {
+     * "abhaId": "ABHA123",
+     * "familyName": "Sharma",
+     * "givenName": "Rahul",
+     * "dateOfBirth": "19900415",
+     * "gender": "M",
+     * "diagnoses": [{ "code": "COVID19", "description": "COVID-19" }]
+     * }
+     */
+    @PostMapping(value = "/json", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> convertJson(@RequestBody String jsonInput) {
+        try {
+            String fhirJson = conversionService.convertFromJson(jsonInput);
+            return ResponseEntity.ok(fhirJson);
+        } catch (Exception e) {
+            return errorResponse(e);
+        }
+    }
+
+    // ==================== CSV Input ====================
+
+    /**
+     * POST /api/convert/csv
+     *
+     * Accepts CSV text and returns a FHIR Bundle JSON.
+     *
+     * Expected format (first row = header):
+     * abhaId,familyName,givenName,dateOfBirth,gender,diagCode,diagDesc
+     * ABHA123,Sharma,Rahul,19900415,M,COVID19,COVID-19
+     */
+    @PostMapping(value = "/csv", consumes = MediaType.TEXT_PLAIN_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> convertCsv(@RequestBody String csvInput) {
+        try {
+            String fhirJson = conversionService.convertFromCsv(csvInput);
+            return ResponseEntity.ok(fhirJson);
+        } catch (Exception e) {
+            return errorResponse(e);
+        }
+    }
+
+    // ==================== History ====================
 
     /**
      * GET /api/convert/history
      *
      * Returns a list of all past conversion records from the database.
-     * Useful for debugging and auditing conversion attempts.
-     *
-     * Example usage:
-     * curl http://localhost:8080/api/convert/history
      */
     @GetMapping("/history")
     public ResponseEntity<List<ConversionRecord>> getHistory() {
         List<ConversionRecord> records = conversionService.getHistory();
         return ResponseEntity.ok(records);
+    }
+
+    // ==================== Helpers ====================
+
+    private ResponseEntity<String> errorResponse(Exception e) {
+        String errorJson = String.format(
+                "{\"error\": \"Conversion failed\", \"message\": \"%s\"}",
+                e.getMessage().replace("\"", "'"));
+        return ResponseEntity.internalServerError().body(errorJson);
     }
 }

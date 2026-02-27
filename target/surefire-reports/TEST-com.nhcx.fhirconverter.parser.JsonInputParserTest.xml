@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report.xsd" version="3.0.2" name="com.nhcx.fhirconverter.parser.Hl7ParserTest" time="0.005" tests="1" errors="0" skipped="0" failures="0">
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report.xsd" version="3.0.2" name="com.nhcx.fhirconverter.parser.JsonInputParserTest" time="0.363" tests="3" errors="0" skipped="0" failures="0">
   <properties>
     <property name="java.specification.version" value="17"/>
     <property name="sun.jnu.encoding" value="UTF-8"/>
@@ -53,5 +53,7 @@
     <property name="sun.io.unicode.encoding" value="UnicodeLittle"/>
     <property name="java.class.version" value="61.0"/>
   </properties>
-  <testcase name="testParse" classname="com.nhcx.fhirconverter.parser.Hl7ParserTest" time="0.002"/>
+  <testcase name="parseFullJson_allFieldsMapped" classname="com.nhcx.fhirconverter.parser.JsonInputParserTest" time="0.314"/>
+  <testcase name="parseInvalidJson_throwsException" classname="com.nhcx.fhirconverter.parser.JsonInputParserTest" time="0.004"/>
+  <testcase name="parseMinimalJson_optionalFieldsNull" classname="com.nhcx.fhirconverter.parser.JsonInputParserTest" time="0.002"/>
 </testsuite>

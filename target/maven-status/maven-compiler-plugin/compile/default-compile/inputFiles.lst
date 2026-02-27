@@ -7,6 +7,8 @@
 /home/artem/test/fhir-converter/src/main/java/com/nhcx/fhirconverter/mapping/MappingProfile.java
 /home/artem/test/fhir-converter/src/main/java/com/nhcx/fhirconverter/model/ConversionRecord.java
 /home/artem/test/fhir-converter/src/main/java/com/nhcx/fhirconverter/model/Hl7Data.java
+/home/artem/test/fhir-converter/src/main/java/com/nhcx/fhirconverter/parser/CsvInputParser.java
 /home/artem/test/fhir-converter/src/main/java/com/nhcx/fhirconverter/parser/Hl7Parser.java
+/home/artem/test/fhir-converter/src/main/java/com/nhcx/fhirconverter/parser/JsonInputParser.java
 /home/artem/test/fhir-converter/src/main/java/com/nhcx/fhirconverter/repository/ConversionRepository.java
 /home/artem/test/fhir-converter/src/main/java/com/nhcx/fhirconverter/service/ConversionService.java

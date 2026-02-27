@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.nhcx.fhirconverter.fhir.FhirValidatorServiceTest
 -------------------------------------------------------------------------------
-Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.797 s -- in com.nhcx.fhirconverter.fhir.FhirValidatorServiceTest
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 7.272 s -- in com.nhcx.fhirconverter.fhir.FhirValidatorServiceTest
